@@ -1,0 +1,5 @@
+# Keep the build context small. vendor/ and phi-crypto-src/ are REQUIRED (offline build).
+.git
+build/
+*.log
+.DS_Store

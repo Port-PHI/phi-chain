@@ -1,0 +1,163 @@
+# SPDX-License-Identifier: Apache-2.0
+# CI for phi-chain. The product is built and tested STRICTLY offline from the committed ./vendor
+# directory (GOPROXY=off -mod=vendor): no module downloads at build time. The pebbledb build tag is
+# required (the default goleveldb backend is broken under recent Go). Toolchain setup and the
+# vuln/secret-scan tooling use the network for environment setup only — never to fetch project deps.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  GOFLAGS: -mod=vendor
+  GOPROXY: off
+  GOSUMDB: off
+
+jobs:
+  build-test:
+    name: Offline build · test · vet · gofmt (from vendor)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: '1.25.x' # latest patch of the tested 1.25 line, so the build/scan use a security-patched Go standard library
+          cache: false
+
+      - name: gofmt (must be clean; vendored deps excluded)
+        run: |
+          # Only the project's own sources are gofmt-gated; the committed ./vendor tree ships with
+          # third-party formatting (build-tag spacing, generated files) that is not ours to reformat.
+          unformatted="$(gofmt -l . | grep -v '^vendor/' || true)"
+          if [ -n "$unformatted" ]; then
+            echo "gofmt needs to be run on:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: Build (offline, pebbledb)
+        run: go build -tags pebbledb ./...
+
+      - name: Vet (offline, pebbledb)
+        run: go vet -tags pebbledb ./...
+
+      - name: Test (offline, pebbledb)
+        run: go test -tags pebbledb -count=1 ./...
+
+  cgo-verifier:
+    name: Real crypto verifier linked (cgo build · test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # The production verifier path (-tags phicrypto_cgo) links the real phi-crypto C-ABI staticlib in
+      # place of the fail-closed Disabled stub, so consensus-critical signature/WebAuthn/BBS+ verification
+      # actually runs. This job builds that staticlib from the phi-crypto source at a pinned revision and
+      # exercises the chain build + full test suite against it, so the cgo integration and the C-ABI
+      # contract the consensus verifier depends on cannot silently break.
+      - name: Check out phi-crypto (C-ABI source, pinned)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: Port-PHI/phi-crypto
+          ref: v0.5.0 # pinned phi-crypto release (the C-ABI the chain links against); bump deliberately with the SHA-256 pin
+          path: phi-crypto-src
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: '1.25.x' # latest patch of the tested 1.25 line, so the build uses a security-patched Go standard library
+          cache: false
+
+      # Pinned to an exact version (not floating "stable"): the SHA-256 staticlib pin below is only
+      # reproducible against a fixed toolchain, so a new Rust release must not silently change the hash.
+      - name: Install Rust toolchain (pinned for a deterministic staticlib hash)
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # v1
+        with:
+          toolchain: 1.96.0
+
+      # phi-crypto ships its own vendored crates + source-replacement config, so the staticlib builds
+      # offline from that committed vendor tree (no crate downloads) — the same offline invariant as the
+      # chain. Toolchain setup above is the only network use.
+      # --locked (pinned Cargo.lock) + --offline (vendored crates) + --remap-path-prefix (path-independent
+      # object files) make the staticlib reproducible from source, so its SHA-256 can be pinned.
+      - name: Build phi-crypto C-ABI staticlib (offline, reproducible, from vendored deps)
+        working-directory: phi-crypto-src
+        run: RUSTFLAGS="--remap-path-prefix=$(pwd)=." cargo build --release --locked --offline
+
+      - name: Stage staticlib + header into phicrypto/lib/
+        run: |
+          mkdir -p phicrypto/lib
+          cp phi-crypto-src/target/release/libphi_crypto.a phicrypto/lib/
+          cp phi-crypto-src/phi_crypto.h phicrypto/lib/
+
+      # Supply-chain gate: the staticlib the chain is about to link must match the
+      # checked-in SHA-256 pin. A mismatch (or an uninitialized pin) fails the build before the cgo link.
+      - name: Verify staticlib hash pin
+        run: bash ./scripts/verify-phicrypto-lib.sh
+
+      - name: Build (offline, pebbledb + phicrypto_cgo)
+        run: go build -tags 'pebbledb phicrypto_cgo' ./...
+
+      - name: Test (offline, pebbledb + phicrypto_cgo)
+        run: go test -tags 'pebbledb phicrypto_cgo' -count=1 ./...
+
+  vuln:
+    name: Vulnerability scan (govulncheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: '1.25.x' # latest patch of the tested 1.25 line, so the build/scan use a security-patched Go standard library
+          cache: false
+      # govulncheck fetches the Go vulnerability DB from the network (this is a vulnerability scan, not the
+      # offline product build). It analyzes the vendored dependency tree for known advisories.
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        env:
+          GOPROXY: https://proxy.golang.org,direct
+          GOFLAGS: ""
+      # Hard gate. Pinning the latest 1.25.x patch fixes every standard-library advisory at the
+      # source, and the cometbft / mapstructure module advisories are resolved by dependency bumps.
+      # govulncheck has no native ignore mechanism, so its JSON output is gated by
+      # .github/scripts/govulncheck_gate.py: the build FAILS on any symbol-reachable advisory except a
+      # small, documented allowlist of cosmos-sdk advisories that have no upstream fix for the v0.53
+      # line (GO-2024-2584, GO-2023-1881, GO-2023-1821 — documented exceptions). Any new
+      # or un-allowlisted finding, including a standard-library regression, fails the build.
+      - name: govulncheck (hard gate; documented exceptions only)
+        run: |
+          # govulncheck exits 0 (no vulns) or 3 (vulns found); both are expected and handed to the
+          # gate script. Any other exit code is a real tool/setup failure and must fail the job.
+          set +e
+          govulncheck -tags pebbledb -format json ./... > govulncheck.json
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ] && [ "$code" -ne 3 ]; then
+            echo "govulncheck failed to run (exit $code):"; head -c 4000 govulncheck.json; exit "$code"
+          fi
+          python3 .github/scripts/govulncheck_gate.py govulncheck.json
+
+  secret-scan:
+    name: Secret scan (full history)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0 # full history so gitleaks scans every commit, not just HEAD
+      # The gitleaks binary is run directly (pinned version + verified SHA-256) instead of
+      # gitleaks-action: that action requires a paid GITLEAKS_LICENSE for org-owned repositories,
+      # while the binary has no such gate. Network use here is tooling setup only (see header).
+      - name: Secret scan (gitleaks, pinned binary)
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION=8.30.1
+          GITLEAKS_SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o gitleaks.tar.gz
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks git . --redact --no-banner --exit-code 1

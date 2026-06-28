@@ -1,0 +1,43 @@
+syntax = "proto3";
+package phi.identity;
+
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "phi/identity/identity.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/identity/types";
+
+// Query service of the identity module.
+service Query {
+  // Params returns the current module parameters.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/phi/identity/params";
+  }
+
+  // Identity returns a DIDDocument by DID.
+  rpc Identity(QueryIdentityRequest) returns (QueryIdentityResponse) {
+    option (google.api.http).get = "/phi/identity/identities/{did}";
+  }
+
+  // IdentityCount returns the total count of registered identities (basis for the bootstrap lock).
+  rpc IdentityCount(QueryIdentityCountRequest) returns (QueryIdentityCountResponse) {
+    option (google.api.http).get = "/phi/identity/count";
+  }
+}
+
+message QueryParamsRequest {}
+message QueryParamsResponse {
+  Params params = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryIdentityRequest {
+  string did = 1;
+}
+message QueryIdentityResponse {
+  DIDDocument identity = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryIdentityCountRequest {}
+message QueryIdentityCountResponse {
+  uint64 count = 1;
+}

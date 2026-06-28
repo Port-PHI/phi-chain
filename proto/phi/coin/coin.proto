@@ -1,0 +1,48 @@
+syntax = "proto3";
+package phi.coin;
+
+import "gogoproto/gogo.proto";
+import "amino/amino.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/coin/types";
+
+// FeeEntry is one row of the per-message-type fixed-fee table.
+message FeeEntry {
+  // Message type (Msg type URL), e.g. /phi.coin.MsgTransfer
+  string msg_type_url = 1;
+  // Fixed fee (uphi)
+  string fee = 2;
+}
+
+// Params holds the coin module's economic parameters; changeable only via governance.
+message Params {
+  option (amino.name) = "phi/x/coin/Params";
+
+  // Per-message-type fixed-fee table (uphi)
+  repeated FeeEntry fees = 1 [(gogoproto.nullable) = false];
+  // Default fee when the message type is not in the table (uphi)
+  string default_fee = 2;
+  // Micro-exemption threshold (uphi); a transaction smaller than this draws from the free quota
+  string micro_threshold = 3;
+  // Daily micro-exemption quota per DID
+  uint64 micro_daily_quota = 4;
+  // Coin-age threshold duration (seconds): below it "young", above it "old"
+  int64 coin_age_threshold_seconds = 5;
+  // Young-coin burn rate (bps; 1bp=0.01%) — default 1% = 100
+  uint32 young_burn_bps = 6;
+  // Old-coin burn rate (bps) — default 0.2% = 20
+  uint32 old_burn_bps = 7;
+}
+
+// CoinAge keeps the two coin-age buckets of each address (anti-circumvention of stepped burn).
+// The bucket label is carried across transfers, so a transfer does not reset the age.
+message CoinAge {
+  // Owner address (bech32)
+  string address = 1;
+  // Young-coin amount (uphi) — below the age threshold
+  string young_amount = 2;
+  // Old-coin amount (uphi) — above the age threshold
+  string old_amount = 3;
+  // Start time of the young-bucket counter (Unix seconds)
+  int64 young_since = 4;
+}

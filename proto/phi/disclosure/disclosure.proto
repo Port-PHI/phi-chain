@@ -1,0 +1,19 @@
+syntax = "proto3";
+package phi.disclosure;
+
+import "amino/amino.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/disclosure/types";
+
+// Params are the disclosure module parameters; changed only via governance.
+//
+// x/disclosure is a stateless, verify-only primitive: it holds no per-disclosure
+// records. Proofs are exchanged off-chain between holder and verifier; the chain
+// only authoritatively confirms a BBS+ selective-disclosure proof against an
+// anchored, non-revoked credential ("verify and forget").
+message Params {
+  option (amino.name) = "phi/x/disclosure/Params";
+
+  // Upper bound on the proof blob size a verification query will accept (anti-DoS).
+  uint32 max_proof_size_bytes = 1;
+}

@@ -1,0 +1,110 @@
+// SPDX-License-Identifier: Apache-2.0
+
+package voting
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"cosmossdk.io/core/appmodule"
+	"github.com/cosmos/cosmos-sdk/client"
+	"github.com/cosmos/cosmos-sdk/codec"
+	cdctypes "github.com/cosmos/cosmos-sdk/codec/types"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/types/module"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+
+	"github.com/Port-PHI/phi-chain/x/voting/keeper"
+	"github.com/Port-PHI/phi-chain/x/voting/types"
+)
+
+// ConsensusVersion is the module consensus version.
+const ConsensusVersion = 1
+
+var (
+	_ module.AppModuleBasic = AppModuleBasic{}
+	_ module.HasGenesis     = AppModule{}
+	_ module.HasServices    = AppModule{}
+	_ appmodule.AppModule   = AppModule{}
+)
+
+// AppModuleBasic is the stateless part of the module.
+type AppModuleBasic struct {
+	cdc codec.Codec
+}
+
+// Name returns the module name.
+func (AppModuleBasic) Name() string { return types.ModuleName }
+
+// RegisterLegacyAminoCodec registers amino types.
+func (AppModuleBasic) RegisterLegacyAminoCodec(cdc *codec.LegacyAmino) {
+	types.RegisterLegacyAminoCodec(cdc)
+}
+
+// RegisterInterfaces registers the module interfaces.
+func (AppModuleBasic) RegisterInterfaces(reg cdctypes.InterfaceRegistry) {
+	types.RegisterInterfaces(reg)
+}
+
+// DefaultGenesis returns the default genesis state as JSON.
+func (AppModuleBasic) DefaultGenesis(cdc codec.JSONCodec) json.RawMessage {
+	return cdc.MustMarshalJSON(types.DefaultGenesis())
+}
+
+// ValidateGenesis validates the genesis state.
+func (AppModuleBasic) ValidateGenesis(cdc codec.JSONCodec, _ client.TxEncodingConfig, bz json.RawMessage) error {
+	var gs types.GenesisState
+	if err := cdc.UnmarshalJSON(bz, &gs); err != nil {
+		return fmt.Errorf("failed to unmarshal %s genesis: %w", types.ModuleName, err)
+	}
+	return gs.Validate()
+}
+
+// RegisterGRPCGatewayRoutes registers the REST/LCD routes.
+func (AppModuleBasic) RegisterGRPCGatewayRoutes(clientCtx client.Context, mux *runtime.ServeMux) {
+	if err := types.RegisterQueryHandlerClient(context.Background(), mux, types.NewQueryClient(clientCtx)); err != nil {
+		panic(err)
+	}
+}
+
+// AppModule is the full module.
+type AppModule struct {
+	AppModuleBasic
+	keeper keeper.Keeper
+}
+
+// NewAppModule builds the voting module.
+func NewAppModule(cdc codec.Codec, k keeper.Keeper) AppModule {
+	return AppModule{
+		AppModuleBasic: AppModuleBasic{cdc: cdc},
+		keeper:         k,
+	}
+}
+
+// IsOnePerModuleType marks the appmodule interface.
+func (AppModule) IsOnePerModuleType() {}
+
+// IsAppModule marks the appmodule interface.
+func (AppModule) IsAppModule() {}
+
+// RegisterServices registers the Msg and Query services.
+func (am AppModule) RegisterServices(cfg module.Configurator) {
+	types.RegisterMsgServer(cfg.MsgServer(), keeper.NewMsgServerImpl(am.keeper))
+	types.RegisterQueryServer(cfg.QueryServer(), am.keeper)
+}
+
+// InitGenesis initializes module state.
+func (am AppModule) InitGenesis(ctx sdk.Context, cdc codec.JSONCodec, data json.RawMessage) {
+	var gs types.GenesisState
+	cdc.MustUnmarshalJSON(data, &gs)
+	am.keeper.InitGenesis(ctx, gs)
+}
+
+// ExportGenesis exports module state.
+func (am AppModule) ExportGenesis(ctx sdk.Context, cdc codec.JSONCodec) json.RawMessage {
+	return cdc.MustMarshalJSON(am.keeper.ExportGenesis(ctx))
+}
+
+// ConsensusVersion returns the module consensus version.
+func (AppModule) ConsensusVersion() uint64 { return ConsensusVersion }

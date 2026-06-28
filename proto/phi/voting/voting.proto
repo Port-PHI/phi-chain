@@ -1,0 +1,84 @@
+syntax = "proto3";
+package phi.voting;
+
+import "gogoproto/gogo.proto";
+import "amino/amino.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/voting/types";
+
+// ElectionStatus is the lifecycle state of an election (poll).
+enum ElectionStatus {
+  option (gogoproto.goproto_enum_prefix) = false;
+
+  ELECTION_STATUS_UNSPECIFIED = 0; // unset
+  ELECTION_STATUS_OPEN        = 1; // accepting votes within its window
+  ELECTION_STATUS_CLOSED      = 2; // no longer accepting votes
+  ELECTION_STATUS_CANCELLED   = 3; // cancelled by the creator before any vote
+}
+
+// Election is a general-purpose on-chain poll (organizational / referendum /
+// party / DAO). Eligibility is gated by a credential template; a ballot is cast
+// anonymously by proving credential possession (BBS+) plus a per-election
+// nullifier for one-vote-per-(eligible)-nullifier.
+//
+// SECURITY: the eligibility proof is bound to (election, nullifier) by the Semaphore binding layer,
+// so a proof is accepted only for the nullifier it was bound to (one proof yields at most one accepted
+// nullifier per election) and reused nullifiers are deduplicated. The remaining one-human-one-vote
+// step is the zero-knowledge derivation proof that nullifier = H(secret, election) for a signed-claim
+// secret; without it, a holder able to produce multiple eligibility proofs from one credential can mint
+// distinct nullifiers. Ballot secrecy (encrypted ballots + threshold decryption) is out of scope here:
+// tallies are public and live.
+message Election {
+  // Election id (primary key), caller-supplied and unique.
+  string id = 1;
+  // Address that created the election (bech32).
+  string creator = 2;
+  // Human-readable question/title.
+  string title = 3;
+  // Ordered choice labels; a ballot's option_index points into this list.
+  repeated string options = 4;
+  // Credential template that gates eligibility (its issuer BBS+ key verifies
+  // proofs). Eligibility is checked at the TEMPLATE level, never a per-credential
+  // anchor: the verifier checks the proof against the template issuer key without
+  // learning which specific credential the voter holds, preserving anonymity. A
+  // per-credential anchor lookup would deanonymize the voter.
+  string required_template_id = 5;
+  // Issuer DID expected for that template (binding/clarity).
+  string required_issuer_did = 6;
+  // Voting window (Unix seconds).
+  int64 voting_start = 7;
+  int64 voting_end = 8;
+  // Lifecycle status.
+  ElectionStatus status = 9;
+  // Running public tally, one count per entry in options.
+  repeated uint64 option_tallies = 10;
+  // Total accepted ballots.
+  uint64 total_votes = 11;
+  // Creation time (Unix seconds).
+  int64 created_at = 12;
+}
+
+// Ballot is one accepted anonymous vote, keyed by (election_id, nullifier). Its
+// existence also serves as the nullifier-used marker (double-vote prevention).
+message Ballot {
+  // Election the ballot belongs to.
+  string election_id = 1;
+  // Per-election nullifier (unlinkable across elections); unique within an election.
+  bytes nullifier = 2;
+  // Chosen option index into Election.options.
+  uint32 option_index = 3;
+  // Cast time (Unix seconds).
+  int64 cast_at = 4;
+}
+
+// Params are the voting module parameters; changed only via governance.
+message Params {
+  option (amino.name) = "phi/x/voting/Params";
+
+  // Maximum number of options an election may declare.
+  uint32 max_options = 1;
+  // Minimum voting window length (seconds) an election must allow.
+  int64 min_voting_period_seconds = 2;
+  // Upper bound on the eligibility proof blob a vote may carry (anti-DoS).
+  uint32 max_proof_size_bytes = 3;
+}

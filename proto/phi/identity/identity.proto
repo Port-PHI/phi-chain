@@ -1,0 +1,63 @@
+syntax = "proto3";
+package phi.identity;
+
+import "gogoproto/gogo.proto";
+import "amino/amino.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/identity/types";
+
+// Status of a Phi identity (DID).
+enum DIDStatus {
+  option (gogoproto.goproto_enum_prefix) = false;
+
+  DID_STATUS_UNSPECIFIED = 0; // unspecified
+  DID_STATUS_ACTIVE      = 1; // active
+  DID_STATUS_REVOKED     = 2; // revoked
+}
+
+// DIDDocument is the on-chain provable identity record of a human.
+// "Verify and forget": only hash/key/signature — never raw or biometric data.
+message DIDDocument {
+  // Unique Phi identity (DID) — primary key
+  string did = 1;
+  // Controller address (bech32 with phi prefix)
+  string controller = 2;
+  // P-256 public key (passkey/Secure Enclave) — raw
+  bytes pub_key = 3;
+  // Biometric uniqueness marker — hash only (enforces one-human-one-DID)
+  bytes uniqueness_hash = 4;
+  // Registration time (Unix seconds) — basis for min_identity_age and vote snapshot
+  int64 created_at = 5;
+  // Identity health status
+  DIDStatus status = 6;
+}
+
+// TrustedIssuer is a governance-managed identity issuer authorized to attest registrations. Its
+// signature over the canonical attestation message is verified on-chain in RegisterIdentity.
+message TrustedIssuer {
+  // did:phi:... of the issuer
+  string did = 1;
+  // P-256 (SEC1) public key used to verify issuer_sig
+  bytes pub_key = 2;
+  // active issuers may attest; revoked ones are kept for audit but rejected
+  bool active = 3;
+}
+
+// Params are the identity module parameters; changeable only via governance.
+message Params {
+  option (amino.name) = "phi/x/identity/Params";
+
+  // Minimum DID age (seconds) to be eligible for public voting
+  int64 min_identity_age_seconds = 1;
+  // Bootstrap lock threshold for institution onboarding (total registered identities)
+  uint64 bootstrap_threshold = 2;
+  // Bootstrap phase — one-way: becomes false forever once the threshold is crossed
+  bool bootstrap_phase = 3;
+  // WebAuthn relying-party origin allow-list (anti-phishing). The on-chain passkey verifier accepts an
+  // assertion only if its clientDataJSON.origin is in this set. Governed (gov-update) with a genesis
+  // default; supports multiple origins (web + native app). Consumed by the WebAuthn ante once the live
+  // router lands; WebAuthn stays gated until then.
+  repeated string webauthn_allowed_origins = 4;
+  // WebAuthn relying-party id (rpId); the verifier checks rpIdHash == SHA256(rpId).
+  string webauthn_rp_id = 5;
+}

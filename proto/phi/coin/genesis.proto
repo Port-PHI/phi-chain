@@ -1,0 +1,14 @@
+syntax = "proto3";
+package phi.coin;
+
+import "gogoproto/gogo.proto";
+import "phi/coin/coin.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/coin/types";
+
+// GenesisState is the initial state of the coin module.
+message GenesisState {
+  Params params = 1 [(gogoproto.nullable) = false];
+  // Initial coin-age buckets
+  repeated CoinAge coin_ages = 2 [(gogoproto.nullable) = false];
+}

@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+# Keep the third-party GitHub Actions used in .github/workflows (pinned to full commit SHAs) up to date.
+# Scoped to github-actions only: Go module dependencies are vendored under ./vendor for strictly-offline,
+# reproducible builds (GOFLAGS=-mod=vendor, GOPROXY=off), so they are upgraded deliberately (go.mod bump +
+# go mod vendor), not by automated dependency PRs.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"

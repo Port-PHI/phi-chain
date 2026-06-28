@@ -1,0 +1,18 @@
+# Build outputs
+/build/
+/phid          # the built node binary at the repo root (NOT the cmd/phid/ source tree)
+
+# Temporary generated proto code (created at the repo root during protocgen and then moved)
+/github.com/
+
+# Environment and secrets — never in git
+.env
+*.pem
+*.key
+
+# Local node data
+.phid/
+*.log
+
+# System
+.DS_Store

@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+# gitleaks configuration for phi-chain. Extends the default ruleset and adds narrowly-scoped
+# allowlists for content that only LOOKS like a secret. Real application secrets and validator keys
+# must never enter this repository (see SECURITY.md).
+#
+# gitleaks auto-loads this file from the scan root in `gitleaks git .` runs; no --config flag needed.
+
+# Require a gitleaks new enough to honor [[allowlists]] and per-allowlist `targetRules` (8.25+).
+minVersion = "8.30.1"
+
+[extend]
+useDefault = true
+
+# 1) Vendored third-party trees: committed for offline builds, not ours to police for secrets.
+#    Third-party test data there (e.g. cometbft rpc test.key, jose2go EC test keys) is out of scope.
+[[allowlists]]
+description = "Vendored third-party code and locally-vendored protobuf imports (no first-party secrets)."
+paths = [
+  '''vendor/.*''',
+  '''proto/(amino|cosmos|cosmos_proto|gogoproto|google)/.*''',
+]
+
+# 2) Three first-party strings the noisy `generic-api-key` heuristic flags that are provably not
+#    secrets: two technical phrases of the form "<primitive>/signature" in prose/comments, and one
+#    domain-separation tag constant. Scoped to that single rule and to these exact literals (anchored),
+#    so every other rule — and any genuinely high-entropy secret — is still detected everywhere.
+[[allowlists]]
+description = "generic-api-key false positives: crypto-primitive phrases and a domain-separation tag."
+targetRules = ["generic-api-key"]
+regexes = [
+  '''^DID/signature$''',       # CONTRIBUTING.md — "WebAuthn, DID/signature verification"
+  '''^BBS\+/signature$''',     # app/app.go — "credentials: BBS+/signature verification ..."
+  '''^phi-key-rotation-v1$''', # x/identity/keeper/issuer.go — keyRotationDomain constant value
+]

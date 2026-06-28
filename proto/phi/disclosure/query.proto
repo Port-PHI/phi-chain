@@ -1,0 +1,52 @@
+syntax = "proto3";
+package phi.disclosure;
+
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "phi/disclosure/disclosure.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/disclosure/types";
+
+// Query is the disclosure module query service.
+service Query {
+  // Params returns the current module parameters.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/phi/disclosure/params";
+  }
+
+  // VerifyDisclosure authoritatively verifies a BBS+ selective-disclosure proof
+  // against an anchored, non-revoked credential. It reveals nothing: the result
+  // is a boolean plus the issuer/template context. The proof (which embeds the
+  // revealed claims) is supplied by the verifier and never stored.
+  rpc VerifyDisclosure(QueryVerifyDisclosureRequest) returns (QueryVerifyDisclosureResponse) {
+    option (google.api.http) = {
+      post: "/phi/disclosure/verify"
+      body: "*"
+    };
+  }
+}
+
+message QueryParamsRequest {}
+message QueryParamsResponse {
+  Params params = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryVerifyDisclosureRequest {
+  // Hash of the anchored credential the proof is derived from.
+  bytes credential_hash = 1;
+  // Serialized BBS+ selective-disclosure proof (SelectiveProof wire format).
+  bytes proof = 2;
+  // Presentation nonce the proof is bound to (anti-replay challenge).
+  bytes nonce = 3;
+}
+
+message QueryVerifyDisclosureResponse {
+  // Whether the proof verified against an active credential from a known issuer.
+  bool valid = 1;
+  // Human-readable reason when valid is false (e.g. "credential revoked").
+  string reason = 2;
+  // Issuer DID of the underlying anchored credential.
+  string issuer_did = 3;
+  // Template id of the underlying anchored credential.
+  string template_id = 4;
+}

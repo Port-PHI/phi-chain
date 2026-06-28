@@ -1,0 +1,14 @@
+syntax = "proto3";
+package phi.disclosure;
+
+import "gogoproto/gogo.proto";
+import "phi/disclosure/disclosure.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/disclosure/types";
+
+// GenesisState is the disclosure module genesis state. The module is stateless
+// beyond its parameters (verify-only).
+message GenesisState {
+  // Module parameters.
+  Params params = 1 [(gogoproto.nullable) = false];
+}

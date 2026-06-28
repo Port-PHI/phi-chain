@@ -1,0 +1,17 @@
+syntax = "proto3";
+package phi.voting;
+
+import "gogoproto/gogo.proto";
+import "phi/voting/voting.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/voting/types";
+
+// GenesisState is the voting module genesis state.
+message GenesisState {
+  // Module parameters.
+  Params params = 1 [(gogoproto.nullable) = false];
+  // Elections.
+  repeated Election elections = 2 [(gogoproto.nullable) = false];
+  // Ballots (cast votes / nullifier markers).
+  repeated Ballot ballots = 3 [(gogoproto.nullable) = false];
+}

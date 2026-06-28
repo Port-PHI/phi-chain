@@ -1,0 +1,23 @@
+# Phi chain proto module — fully self-contained and offline.
+# The proto dependencies (gogoproto, cosmos, cosmos_proto, amino, google/api) are vendored
+# locally under this directory, so buf needs no online BSR registry.
+version: v1
+breaking:
+  use:
+    - FILE
+lint:
+  use:
+    - DEFAULT
+  except:
+    - UNARY_RPC
+    - COMMENT_FIELD
+    - SERVICE_SUFFIX
+    - PACKAGE_VERSION_SUFFIX
+    - RPC_REQUEST_STANDARD_NAME
+  # Vendored dependency proto directories are excluded from lint — they exist only to resolve imports.
+  ignore:
+    - amino
+    - cosmos
+    - cosmos_proto
+    - gogoproto
+    - google
