@@ -24,10 +24,10 @@ jobs:
     name: Offline build · test · vet · gofmt (from vendor)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.25.x' # latest patch of the tested 1.25 line, so the build/scan use a security-patched Go standard library
           cache: false
@@ -74,7 +74,7 @@ jobs:
     name: Real crypto verifier linked (cgo build · test)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # The production verifier path (-tags phicrypto_cgo) links the real phi-crypto C-ABI staticlib in
       # place of the fail-closed Disabled stub, so consensus-critical signature/WebAuthn/BBS+ verification
@@ -82,14 +82,14 @@ jobs:
       # exercises the chain build + full test suite against it, so the cgo integration and the C-ABI
       # contract the consensus verifier depends on cannot silently break.
       - name: Check out phi-crypto (C-ABI source, pinned)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Port-PHI/phi-crypto
           ref: v1.0.0 # pinned phi-crypto release (the C-ABI the chain links against); bump deliberately with the SHA-256 pin
           path: phi-crypto-src
 
       - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.25.x' # latest patch of the tested 1.25 line, so the build uses a security-patched Go standard library
           cache: false
@@ -161,8 +161,8 @@ jobs:
     name: Vulnerability scan (govulncheck)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.25.x' # latest patch of the tested 1.25 line, so the build/scan use a security-patched Go standard library
           cache: false
@@ -197,8 +197,8 @@ jobs:
     name: Static security analysis (staticcheck · gosec)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.25.x' # latest patch of the tested 1.25 line, so the scan uses a security-patched Go standard library
           cache: false
@@ -243,7 +243,7 @@ jobs:
     name: Secret scan (full history)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # full history so gitleaks scans every commit, not just HEAD
       # The gitleaks binary is run directly (pinned version + verified SHA-256) instead of
