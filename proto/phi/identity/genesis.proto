@@ -1,0 +1,39 @@
+syntax = "proto3";
+package phi.identity;
+
+import "gogoproto/gogo.proto";
+import "phi/identity/identity.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/identity/types";
+
+// StoreEntry is one raw key/value record under a module store prefix. It round-trips the issuer
+// single-use nonce markers and the validator↔DID bindings, which are pure KV markers/indexes with no
+// other structured representation; exporting the exact bytes guarantees an exact import (L11/L12).
+message StoreEntry {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+// GenesisState is the initial state of the identity module.
+message GenesisState {
+  // Module parameters
+  Params params = 1 [(gogoproto.nullable) = false];
+  // Initial identities
+  repeated DIDDocument identities = 2 [(gogoproto.nullable) = false];
+  // Total identity counter (for the bootstrap lock)
+  uint64 identity_count = 3;
+  // Governance-managed trusted identity issuers (for export/import round-trip; bootstrap seeds the first).
+  repeated TrustedIssuer trusted_issuers = 4 [(gogoproto.nullable) = false];
+  // Raw markers round-tripped verbatim (L11/L12): issuer single-use attestation nonces and the two-way
+  // validator↔DID bindings. Without these, an export→import would reset issuer-nonce anti-replay and
+  // drop the unique-DID-per-validator bindings (allowing a re-import to rebind a DID to a new validator).
+  repeated StoreEntry store_entries = 5 [(gogoproto.nullable) = false];
+  // Social-recovery guardian commitment sets, one per protected DID (structured, so bounds are
+  // validated at genesis).
+  repeated GuardianSet guardian_sets = 6 [(gogoproto.nullable) = false];
+  // Recovery requests. Only PENDING requests are exported — terminal ones carry no live meaning. The
+  // execute_after / expires_at timestamps are ABSOLUTE, so an export→import never restarts anyone's
+  // opposition window. The escrowed deposits are held by the identity module account, whose balance the
+  // bank genesis restores.
+  repeated RecoveryRequest recovery_requests = 7 [(gogoproto.nullable) = false];
+}

@@ -1,0 +1,86 @@
+syntax = "proto3";
+package phi.identity;
+
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "phi/identity/identity.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/identity/types";
+
+// Query service of the identity module.
+service Query {
+  // Params returns the current module parameters.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/phi/identity/params";
+  }
+
+  // Identity returns a DIDDocument by DID.
+  rpc Identity(QueryIdentityRequest) returns (QueryIdentityResponse) {
+    option (google.api.http).get = "/phi/identity/identities/{did}";
+  }
+
+  // IdentityCount returns the total count of registered identities (basis for the bootstrap lock).
+  rpc IdentityCount(QueryIdentityCountRequest) returns (QueryIdentityCountResponse) {
+    option (google.api.http).get = "/phi/identity/count";
+  }
+
+  // Guardians returns a DID's guardian configuration SHAPE only — how many guardians and the
+  // threshold. It deliberately does NOT return the commitments or any guardian identity: the whole
+  // point of the commitment scheme is that the guardian graph is not readable.
+  rpc Guardians(QueryGuardiansRequest) returns (QueryGuardiansResponse) {
+    option (google.api.http).get = "/phi/identity/guardians/{did}";
+  }
+
+  // RecoveryRequest returns one recovery request by id.
+  rpc RecoveryRequest(QueryRecoveryRequestRequest) returns (QueryRecoveryRequestResponse) {
+    option (google.api.http).get = "/phi/identity/recovery/{recovery_id}";
+  }
+
+  // RecoveryRequestsByDID returns every recovery request recorded for a DID (open and terminal).
+  rpc RecoveryRequestsByDID(QueryRecoveryRequestsByDIDRequest) returns (QueryRecoveryRequestsByDIDResponse) {
+    option (google.api.http).get = "/phi/identity/recovery/by-did/{did}";
+  }
+}
+
+message QueryParamsRequest {}
+message QueryParamsResponse {
+  Params params = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryIdentityRequest {
+  string did = 1;
+}
+message QueryIdentityResponse {
+  DIDDocument identity = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryIdentityCountRequest {}
+message QueryIdentityCountResponse {
+  uint64 count = 1;
+}
+
+message QueryGuardiansRequest {
+  string did = 1;
+}
+message QueryGuardiansResponse {
+  // How many guardians are configured (the commitments themselves are not exposed)
+  uint32 commitment_count = 1;
+  // Approvals required to recover
+  uint32 threshold = 2;
+  // Last update time (Unix seconds)
+  int64 updated_at = 3;
+}
+
+message QueryRecoveryRequestRequest {
+  bytes recovery_id = 1;
+}
+message QueryRecoveryRequestResponse {
+  RecoveryRequest request = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryRecoveryRequestsByDIDRequest {
+  string did = 1;
+}
+message QueryRecoveryRequestsByDIDResponse {
+  repeated RecoveryRequest requests = 1 [(gogoproto.nullable) = false];
+}

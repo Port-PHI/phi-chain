@@ -1,0 +1,55 @@
+Phi (φ) — proof-of-identity blockchain (phi-chain)
+Copyright © 2026 Homaan Smart Data Co.  Licensed under the Apache License, Version 2.0.
+
+  Company: Homaan Smart Data
+  Website: https://homaanic.ir   ·   Product: https://portphi.com
+  GitHub:  https://github.com/homaangit
+
+This product includes software developed by Homaan Smart Data.
+Licensed under the Apache License, Version 2.0 (see the LICENSE file).
+
+------------------------------------------------------------------------
+Intellectual property & ownership
+------------------------------------------------------------------------
+
+The Phi protocol and all original source in this repository are the
+intellectual property of Homaan Smart Data Co. ("Homaan"). Homaan owns and
+reserves all copyright, design, and patent rights in its original Phi work.
+
+Homaan makes this software available to the public for use, study,
+modification, and redistribution under the Apache License, Version 2.0 --
+the governing license for this repository (see the LICENSE file), which
+includes the patent license granted in its Section 3. This notice asserts
+ownership and attribution only; it does not add to, remove from, or
+otherwise modify the terms of the Apache License, Version 2.0.
+
+"Phi", the Greek letter phi (the project mark), and "portphi" are
+trademarks of Homaan Smart Data Co.; trademark rights are reserved and are
+not licensed by the Apache License (see its Section 6).
+
+------------------------------------------------------------------------
+Third-party components
+------------------------------------------------------------------------
+
+phi-chain is built on top of the following open-source frameworks and
+libraries, each retaining its own copyright and license. Their source is
+vendored under ./vendor and ./proto for reproducible, offline, verifiable
+builds. No affiliation or endorsement is implied.
+
+  - Cosmos SDK            (github.com/cosmos/cosmos-sdk)        Apache-2.0
+  - CometBFT              (github.com/cometbft/cometbft)        Apache-2.0
+  - cosmossdk.io modules  (math, store, log, core, x/tx, ...)   Apache-2.0
+  - gogoproto             (github.com/cosmos/gogoproto)         BSD-3-Clause
+  - Protocol Buffers (Go) (google.golang.org/protobuf)          BSD-3-Clause
+  - gRPC (Go)             (google.golang.org/grpc)              Apache-2.0
+  - googleapis protos     (google/api annotations)              Apache-2.0
+  - grpc-gateway          (github.com/grpc-ecosystem/...)       BSD-3-Clause
+  - Cobra / Viper / cast  (github.com/spf13/...)                Apache-2.0 / MIT
+
+Full license texts for these components are included within their
+respective directories under ./vendor.
+
+The Phi-specific protocol — the x/identity, x/coin, x/institutions and
+x/governance modules, the multi-institution solvency invariant, the
+one-human-one-vote tally, and the secp256r1/passkey ante — is original
+work of Homaan Smart Data.

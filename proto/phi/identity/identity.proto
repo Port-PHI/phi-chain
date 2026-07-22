@@ -1,0 +1,212 @@
+syntax = "proto3";
+package phi.identity;
+
+import "gogoproto/gogo.proto";
+import "amino/amino.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/identity/types";
+
+// Status of a Phi identity (DID).
+enum DIDStatus {
+  option (gogoproto.goproto_enum_prefix) = false;
+
+  DID_STATUS_UNSPECIFIED = 0; // unspecified
+  DID_STATUS_ACTIVE      = 1; // active
+  DID_STATUS_REVOKED     = 2; // revoked (terminal)
+  DID_STATUS_SUSPENDED   = 3; // suspended (reversible; legal suspension at the state layer)
+}
+
+// DIDDocument is the on-chain provable identity record of a human.
+// "Verify and forget": only hash/key/signature — never raw or biometric data.
+message DIDDocument {
+  // Unique Phi identity (DID) — primary key
+  string did = 1;
+  // Controller address (bech32 with phi prefix)
+  string controller = 2;
+  // P-256 public key (passkey/Secure Enclave) — raw
+  bytes pub_key = 3;
+  // Biometric uniqueness marker — hash only (enforces one-human-one-DID)
+  bytes uniqueness_hash = 4;
+  // Registration time (Unix seconds) — basis for min_identity_age and vote snapshot
+  int64 created_at = 5;
+  // Identity health status
+  DIDStatus status = 6;
+  // Curve of pub_key. SECP256R1 is the default (a non-extractable device passkey); SECP256K1 is the
+  // OPT-IN self-custody path, where the key is derived from a BIP-39 recovery phrase. It is recorded
+  // because it decides which curve verifies this identity's signatures and which tag derives its DID.
+  // UNSPECIFIED means SECP256R1: identities registered before this field existed are all passkeys.
+  KeyType key_type = 7;
+}
+
+// TrustedIssuer is a governance-managed identity issuer authorized to attest registrations. Its
+// signature over the canonical attestation message is verified on-chain in RegisterIdentity.
+message TrustedIssuer {
+  // did:phi:... of the issuer
+  string did = 1;
+  // P-256 (SEC1) public key used to verify issuer_sig
+  bytes pub_key = 2;
+  // active issuers may attest; revoked ones are kept for audit but rejected
+  bool active = 3;
+}
+
+// GuardianSet is a DID's social-recovery guardian configuration, stored as HIDING COMMITMENTS rather
+// than guardian DIDs. Each commitment is
+//
+//	C_i = SHA256("phi-guardian-commit-v1" ‖ 0x00 ‖ guardian_did_i ‖ 0x00 ‖ salt_i)
+//
+// computed client-side; salt_i is a 32-byte secret delivered OUT-OF-BAND to guardian i (never on
+// chain) and custodied by that guardian. The DID registry is public, so an UNSALTED hash of a guardian
+// DID would be a trivial membership oracle — the salt is what makes the set genuinely private, and
+// keeping it with the guardian (not the owner) means it survives the owner's device loss, which is the
+// very scenario recovery exists for.
+//
+// Consequence: the chain cannot see the guardian DIDs, so guardian eligibility (exists + ACTIVE +
+// not-self) cannot be checked when the set is written — it is checked at APPROVAL time, where the
+// guardian reveals (guardian_did, salt) and the chain re-derives the commitment.
+message GuardianSet {
+  // The DID these guardians protect — primary key
+  string did = 1;
+  // Guardian commitments — distinct, 32 bytes each
+  repeated bytes commitments = 2;
+  // Approvals required to recover (1 <= threshold <= len(commitments))
+  uint32 threshold = 3;
+  // Last update time (Unix seconds)
+  int64 updated_at = 4;
+}
+
+// KeyType is the curve of an identity's authentication key.
+enum KeyType {
+  option (gogoproto.goproto_enum_prefix) = false;
+
+  KEY_TYPE_UNSPECIFIED = 0;
+  KEY_TYPE_SECP256R1   = 1; // P-256 passkey / Secure Enclave — the default
+  KEY_TYPE_SECP256K1   = 2; // the opt-in self-custody path: a key derived from a BIP-39 recovery phrase
+}
+
+// RecoveryMethod is how a recovery is authorised.
+enum RecoveryMethod {
+  option (gogoproto.goproto_enum_prefix) = false;
+
+  RECOVERY_METHOD_UNSPECIFIED = 0;
+  RECOVERY_METHOD_SOCIAL      = 1; // guardian threshold
+  RECOVERY_METHOD_REAUTH      = 2; // re-authentication attestation by a trusted issuer (build-gated: see keeper.ReauthRecoveryEnabled)
+}
+
+// RecoveryStatus is the lifecycle of a recovery request. PENDING is the only non-terminal state.
+enum RecoveryStatus {
+  option (gogoproto.goproto_enum_prefix) = false;
+
+  RECOVERY_STATUS_UNSPECIFIED = 0;
+  RECOVERY_STATUS_PENDING     = 1;
+  RECOVERY_STATUS_EXECUTED    = 2; // terminal — the key was rotated
+  RECOVERY_STATUS_REJECTED    = 3; // terminal — cancelled by the current controller
+  RECOVERY_STATUS_EXPIRED     = 4; // terminal — TTL elapsed (evaluated lazily, never in an EndBlocker)
+  RECOVERY_STATUS_SUPERSEDED  = 5; // terminal — another request for the same DID executed first
+}
+
+// RecoveryRequest is one in-flight attempt to rotate a DID's key without its current key.
+//
+// Consensus-critical invariant: executing a recovery mutates ONLY pub_key and controller. The did, the
+// uniqueness_hash and created_at are preserved byte-for-byte, so a recovered DID stays exactly one DID
+// bound to exactly one uniqueness marker.
+message RecoveryRequest {
+  // = SHA256("phi-recovery-id-v1" ‖ 0x00 ‖ did ‖ 0x00 ‖ proposed_new_pub_key ‖ 0x00 ‖ nonce)
+  bytes recovery_id = 1;
+  // The protected DID — NEVER changes
+  string did = 2;
+  // The key that will replace the DID's pub_key on execute
+  bytes proposed_new_pub_key = 3;
+  // The account that will control the DID on execute. Locked at initiate (to the initiator, who proved
+  // possession of proposed_new_pub_key) because MsgExecuteRecovery is permissionless and its sender
+  // must not be able to choose the new controller.
+  string proposed_new_controller = 4;
+  // Curve of proposed_new_pub_key
+  KeyType key_type = 5;
+  // How this recovery is authorised: SOCIAL (guardian threshold) or REAUTH (issuer attestation)
+  RecoveryMethod method = 6;
+  // Guardian DIDs that have approved — revealed at approval, deduped by DID. Always empty for REAUTH:
+  // the attestation verified at initiate IS the authorisation, so execute needs only the delay.
+  repeated string approvals = 7;
+  // Single-use anti-replay nonce, bound into recovery_id and the proof-of-possession message
+  bytes nonce = 8;
+  // Open time (Unix seconds)
+  int64 initiated_at = 9;
+  // Earliest execution time = initiated_at + recovery_delay_seconds (the public opposition window)
+  int64 execute_after = 10;
+  // TTL: after this the request is treated as EXPIRED on any access
+  int64 expires_at = 11;
+  // Deposit escrowed at initiate (uphi). Stored on the request so refund/forfeit uses the amount that
+  // was actually taken, even if the governed param changes while the request is in flight. Always "0"
+  // for REAUTH, which pays a non-refundable fee instead (a valid attestation already required a real
+  // re-authentication, so there is no griefing to price).
+  string deposit_uphi = 12;
+  // Lifecycle state
+  RecoveryStatus status = 13;
+  // REAUTH: the TrustedIssuer DID whose attestation authorised this request (audit trail; empty for
+  // SOCIAL). The attestation itself is NOT stored — it is verified at initiate and never re-checked.
+  string attestor_did = 14;
+  // REAUTH: the fee (uphi) taken at initiate and paid straight to the fee collector — non-refundable
+  // in every terminal state (empty/"0" for SOCIAL).
+  string fee_uphi = 15;
+  // Guardian DIDs that have REJECTED this request — revealed at rejection, deduped by DID, exactly as
+  // approvals are. On reaching the DID's guardian threshold the request becomes REJECTED and its slot
+  // is freed, which is what stops a spurious request from occupying a slot until its TTL. Always empty
+  // for REAUTH: that path takes no guardian input at all.
+  repeated string rejections = 16;
+  // Suspension-hold stamp (Unix seconds): the block time at which a suspension of the protected DID was
+  // observed while THIS request was still within its TTL. Zero means no active hold. It is set when the
+  // DID is suspended (and only for requests still live at that instant) and cleared when the DID is
+  // reinstated. The lazy-expiry hold protects a request only while this stamp is non-zero, so a request
+  // that had already expired when a later, unrelated suspension arrived carries no stamp and is not
+  // revived by it.
+  int64 frozen_at = 17;
+}
+
+// Params are the identity module parameters; changeable only via governance.
+message Params {
+  option (amino.name) = "phi/x/identity/Params";
+
+  // Minimum DID age (seconds) to be eligible for public voting
+  int64 min_identity_age_seconds = 1;
+  // Bootstrap lock threshold for institution onboarding (total registered identities)
+  uint64 bootstrap_threshold = 2;
+  // Bootstrap phase — one-way: becomes false forever once the threshold is crossed
+  bool bootstrap_phase = 3;
+  // WebAuthn relying-party origin allow-list (anti-phishing). The on-chain passkey verifier accepts an
+  // assertion only if its clientDataJSON.origin is in this set. Governed (gov-update) with a genesis
+  // default; supports multiple origins (web + native app). Consumed by the WebAuthn ante once the live
+  // router lands; WebAuthn stays gated until then.
+  repeated string webauthn_allowed_origins = 4;
+  // WebAuthn relying-party id (rpId); the verifier checks rpIdHash == SHA256(rpId).
+  string webauthn_rp_id = 5;
+  // Upper bound on a DID's guardian-set size (state-bloat guard). The chain enforces only the bounds;
+  // the recommended app default (3-of-5) is a client concern.
+  uint32 max_guardians = 6;
+  // Stepped User-Verification policy: message type URLs whose presence in a transaction makes that
+  // transaction "sensitive", so a passkey signer must complete a User-Verification gesture
+  // (biometric/PIN), not merely User-Presence. Governed — changing what authentication a message
+  // demands is consensus-relevant.
+  repeated string uv_sensitive_msg_type_urls = 7;
+  // A coin transfer of at least this amount (uphi) is sensitive and also requires User-Verification.
+  // "0" disables the amount-based rule (type-URL rules still apply).
+  string uv_large_transfer_uphi = 8;
+  // Social-recovery opposition window (seconds): the delay between initiating a recovery and the
+  // earliest moment it may execute, during which the true controller can cancel a hijack.
+  int64 recovery_delay_seconds = 9;
+  // Time-to-live (seconds) of a recovery request. Past it the request is EXPIRED on next access and
+  // its slot is reclaimed. Evaluated lazily — never by an unbounded EndBlocker sweep.
+  int64 recovery_request_ttl_seconds = 10;
+  // Cap on concurrent PENDING recovery requests per DID. A single exclusive slot would let a griefer
+  // lock out exactly the users who cannot cancel (those who genuinely lost their key); the cap plus the
+  // deposit bounds state while keeping a legitimate recovery always openable.
+  uint32 max_open_recovery_requests = 11;
+  // Deposit (uphi) escrowed at MsgInitiateRecovery: refunded on execute, forfeited to the fee collector
+  // on cancel/expire/supersede. Forfeit MOVES the coins (never burns them) — uphi is vault-backed, so
+  // burning would shrink supply against unchanged vaults and break the solvency invariant.
+  string recovery_deposit_uphi = 12;
+  // Fee (uphi) charged at MsgInitiateRecovery{method=REAUTH} and paid directly to the fee collector.
+  // It is a FEE, not a deposit: never refunded, in any terminal state. REAUTH takes no deposit because
+  // the attestation it carries already proves a real re-authentication of the same human, so there is
+  // no cheap griefing to price — what is priced is the service.
+  string reauth_recovery_fee_uphi = 13;
+}

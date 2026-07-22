@@ -1,0 +1,41 @@
+syntax = "proto3";
+package phi.disclosure;
+
+import "amino/amino.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/disclosure/types";
+
+// DisclosureLevel is the privacy level a verified proof actually exercised (Master Spec §3.4). The
+// chain does not take the caller's word for it: the level is DERIVED from the proof itself, from how
+// many claims it reveals, and reported back so a verifier can refuse a presentation that revealed more
+// than its use case warranted.
+enum DisclosureLevel {
+  option (gogoproto.goproto_enum_prefix) = false;
+
+  // Unset (a failed verification reveals nothing and carries no level).
+  DISCLOSURE_LEVEL_UNSPECIFIED = 0;
+  // L1 — predicate / zero-knowledge: the proof reveals NO raw claim. It establishes only that the
+  // holder possesses a valid, non-revoked credential of this template (and whatever predicate the
+  // proof itself encodes). Always within policy: nothing is disclosed, so nothing can be disclosed
+  // that the issuer forbade.
+  DISCLOSURE_LEVEL_PREDICATE = 1;
+  // L2 — partial selective reveal: the proof reveals a subset of the claims, which is accepted only if
+  // EVERY revealed index is in the template's disclosable set.
+  DISCLOSURE_LEVEL_PARTIAL = 2;
+  // L3 — full credential presentation — is deliberately absent: it is an off-chain exchange (phi-net)
+  // between holder and verifier and the chain plays no part in it.
+}
+
+// Params are the disclosure module parameters; changed only via governance.
+//
+// x/disclosure is a stateless, verify-only primitive: it holds no per-disclosure
+// records. Proofs are exchanged off-chain between holder and verifier; the chain
+// only authoritatively confirms a BBS+ selective-disclosure proof against an
+// anchored, non-revoked credential ("verify and forget").
+message Params {
+  option (amino.name) = "phi/x/disclosure/Params";
+
+  // Upper bound on the proof blob size a verification query will accept (anti-DoS).
+  uint32 max_proof_size_bytes = 1;
+}

@@ -1,0 +1,240 @@
+syntax = "proto3";
+package phi.institutions;
+
+import "gogoproto/gogo.proto";
+import "cosmos_proto/cosmos.proto";
+import "amino/amino.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/institutions/types";
+
+// Institution health status — for display in the app.
+enum InstitutionStatus {
+  option (gogoproto.goproto_enum_prefix) = false;
+
+  INSTITUTION_STATUS_UNSPECIFIED = 0; // unspecified
+  INSTITUTION_STATUS_HEALTHY     = 1; // healthy
+  INSTITUTION_STATUS_LOW_LIQ     = 2; // low liquidity
+  INSTITUTION_STATUS_FROZEN      = 3; // frozen — minting halted
+}
+
+// InstitutionType distinguishes a bank (financial) from a licensed currency exchange (fx).
+// Both keep a Rial-only vault and obey the same solvency invariant; the type only governs the
+// fx provenance metadata recorded on mint/burn.
+enum InstitutionType {
+  option (gogoproto.goproto_enum_prefix) = false;
+
+  INSTITUTION_TYPE_UNSPECIFIED = 0; // treated as financial (default for pre-existing institutions)
+  INSTITUTION_TYPE_FINANCIAL   = 1; // central-bank-licensed credit institution (bank)
+  INSTITUTION_TYPE_FX          = 2; // licensed currency exchange (Rial vault; off-chain FX conversion)
+}
+
+// Institution is the record of each financial institution registered in the registry (TrustedInstitutions).
+// Multi-institution model: each institution mints/burns against "its own vault"; no inter-institution settlement.
+message Institution {
+  // unique institution ID
+  string id = 1;
+  // central-bank license reference (hash/ID — not raw data)
+  string license = 2;
+  // institution admin address (signer of mint/redeem/attest)
+  string admin = 3 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  // segregated/escrow vault account
+  string vault_account = 4;
+  // live API endpoint for reconciliation (phi-bridge)
+  string vault_api = 5;
+  // performance bond (uphi)
+  string bond = 6;
+  InstitutionStatus status = 7;
+  // attested on-chain vault balance (Toman) — never goes negative
+  string vault_balance = 8;
+  // latest attested vault reserve (Toman) — the allowed mint ceiling (deterministic, not the live market)
+  string attested_reserve = 9;
+  // only halts minting; never redemption (one-directional safety invariant)
+  bool paused_mint = 10;
+  // app display config (§13.2) — does not touch PHI's coin/invariant/labellessness.
+  InstitutionAppConfig app_config = 11 [(gogoproto.nullable) = false];
+  // operational parameters and risk rules (§13.3) — only stricter than the protocol floor.
+  InstitutionParams params = 12 [(gogoproto.nullable) = false];
+  // Institution category (financial bank vs fx exchange). UNSPECIFIED is treated as financial.
+  InstitutionType institution_type = 13;
+  // P-256 (SEC1) deposit-signing public key. Once set, every mint must carry a deposit_proof that is
+  // a valid signature by this key over the canonical deposit message (provably-backed minting).
+  // Empty = unset (verification skipped until the institution registers a key). Set via the sensitive
+  // MsgSetInstitutionDepositKey (multisig). See docs/institutions-deposit-proof.md.
+  bytes deposit_pubkey = 14;
+  // When the reserve attestation was last posted (Unix seconds, from BLOCK TIME — never a wall
+  // clock). Minting is closed while this is older than the governed staleness threshold (§4.6): the
+  // chain must be able to tell a fresh attestation from a months-old one. 0 means "never attested".
+  //
+  // This is NOT an oracle: it is a timestamp the chain itself stamps when an attestation message is
+  // executed, compared against the chain's own block time. No live external value enters consensus.
+  int64 last_attested_at = 15;
+}
+
+// Sub-organization roles of an institution (RBAC §13.1). The keeper checks the signer's role
+// before every institution-scoped message (on-chain access control, not the panel). A role can be
+// granted to the bank's automated "service key" to sign mint/redeem programmatically without a human.
+enum InstitutionRole {
+  option (gogoproto.goproto_enum_prefix) = false;
+
+  INSTITUTION_ROLE_UNSPECIFIED = 0; // no role
+  INSTITUTION_ROLE_ADMIN       = 1; // admin: config, pause, sub-user management (sensitive multisig actions)
+  INSTITUTION_ROLE_OPERATOR    = 2; // mint/redeem monitoring, attestation publishing (automated service key)
+  INSTITUTION_ROLE_FINANCE     = 3; // vault/liquidity/revenue
+  INSTITUTION_ROLE_COMPLIANCE  = 4; // AML, KYC, risk rules
+  INSTITUTION_ROLE_DEVELOPER   = 5; // vault/oracle API key
+  INSTITUTION_ROLE_VIEWER      = 6; // read-only
+}
+
+// AppServices holds the app display toggles (§13.2).
+message AppServices {
+  bool mint_enabled         = 1;
+  bool redeem_enabled       = 2;
+  bool withdraw_enabled     = 3; // takes effect only within the global withdrawal feature-flag
+  bool show_live_scan_link  = 4;
+  bool show_support_contact = 5;
+  bool show_guide           = 6;
+}
+
+// InstitutionAppConfig is the institution's app display config (§13.2).
+// The source of truth for balance is always the on-chain vault_balance; live_scan_url is only a
+// supplementary external link whose domain is matched against the on-chain live_scan_domain (anti-phishing).
+message InstitutionAppConfig {
+  AppServices services    = 1 [(gogoproto.nullable) = false];
+  string live_scan_url    = 2;
+  string live_scan_domain = 3;
+  string display_name_fa  = 4;
+  string display_name_en  = 5;
+  bytes  logo_hash        = 6;
+  string support_contact  = 7;
+}
+
+// Caps are the operational mint/burn limits (Toman; "" or "0" = no cap). §13.3 — only stricter than the protocol floor.
+message Caps {
+  string mint_daily      = 1;
+  string mint_per_tx     = 2;
+  string mint_per_user   = 3;
+  string redeem_daily    = 4;
+  string redeem_per_tx   = 5;
+  string redeem_per_user = 6;
+}
+
+// AutoSuspendRules are the auto-suspend rules (only stricter than the protocol floor; phi-bridge is the final freeze authority).
+// Fields 1 and 2 (max_divergence_bps, max_oracle_latency_s) belonged to the deprecated on-chain
+// oracle / divergence-breaker model and have been removed; their numbers are reserved.
+message AutoSuspendRules {
+  reserved 1, 2;
+  reserved "max_divergence_bps", "max_oracle_latency_s";
+
+  // The institution's OWN attestation-staleness limit (seconds; 0 = unset, use the protocol floor).
+  // One-directional safety (§4.9): an institution may only make itself STRICTER, so this must be
+  // <= the protocol's max_attestation_staleness_seconds. The keeper enforces that.
+  uint64 max_vault_attestation_latency_s = 3;
+}
+
+// KycTierLimit is the daily limit per KYC tier (Toman).
+message KycTierLimit {
+  uint32 tier              = 1;
+  string daily_limit_toman = 2;
+}
+
+// InstitutionParams are the institution's operational parameters and risk rules (§13.3).
+// Minting stays 100% automatic and conditioned on an attested deposit + the reserve invariant; the institution only makes it stricter.
+message InstitutionParams {
+  // Field 5 (oracle_endpoint) belonged to the deprecated on-chain oracle model and is removed; reserved.
+  reserved 5;
+  reserved "oracle_endpoint";
+  Caps caps                             = 1 [(gogoproto.nullable) = false];
+  repeated KycTierLimit kyc_tier_limits = 2 [(gogoproto.nullable) = false];
+  AutoSuspendRules auto_suspend_rules   = 3 [(gogoproto.nullable) = false];
+  string vault_api_endpoint             = 4;
+  // multisig threshold for sensitive actions (default 2; 0 = default). Configurable per institution.
+  uint32 sensitive_threshold            = 6;
+}
+
+// RoleGrant is a single role grant to an address within an institution (for genesis round-trip).
+message RoleGrant {
+  string institution   = 1;
+  string address       = 2 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  InstitutionRole role = 3;
+}
+
+// FxEntryStatus is the lifecycle of an fx onboarding request.
+enum FxEntryStatus {
+  FX_ENTRY_UNSPECIFIED = 0;
+  FX_ENTRY_REQUESTED   = 1; // applied, awaiting guarantor approval
+  FX_ENTRY_GUARANTEED  = 2; // guarantor approved, awaiting public vote / bootstrap finalize
+  FX_ENTRY_FINALIZED   = 3; // registered as an fx institution
+}
+
+// FxEntryRequest is a pending exchange onboarding request (guarantor + vote flow).
+message FxEntryRequest {
+  string fx_id          = 1;
+  string applicant      = 2 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string license        = 3;
+  string guarantor_id   = 4;
+  FxEntryStatus status  = 5;
+}
+
+// EmergencyRedemption is the network-wide stepped-redemption brake (governance-activated): during a
+// run, each holder's cumulative redemption per institution is capped, and the cap relaxes over time
+// until full settlement. The caps are network governance parameters; the defaults are: before day 30
+// → halted; from day 30 → 200 PHI (20,000,000 Toman); from day 60 → 2,000 PHI (200,000,000 Toman);
+// from day 90 → unlimited.
+message EmergencyRedemption {
+  bool active = 1;
+  // unix seconds when the current emergency was activated (set by the keeper on activation).
+  int64 started_at = 2;
+  // cumulative per-holder redeem cap (Toman) during [0,30) days ("" or "0" = redemptions halted).
+  string cap_before_day30 = 3;
+  // cumulative per-holder redeem cap (Toman) from day 30 (default 20,000,000).
+  string cap_from_day30 = 4;
+  // cumulative per-holder redeem cap (Toman) from day 60 (default 200,000,000).
+  string cap_from_day60 = 5;
+  // from day 90: unlimited (full settlement) — no field.
+}
+
+// Params are the institutions module parameters; changed only via governance.
+message Params {
+  option (amino.name) = "phi/x/institutions/Params";
+
+  // operator/company address — allowed to Register/Remove/Freeze
+  string operator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  // fixed rate: 1 PHI = phi_to_toman Toman (canonical = 100,000)
+  uint64 phi_to_toman = 2;
+  // protocol floor for the per-transaction redeem cap (Toman; "" or "0" = no floor).
+  // An institution cannot set its redeem cap below this floor (user protection — §13.4).
+  string redeem_floor_per_tx = 3;
+  // network-wide emergency stepped-redemption brake (governance-activated; default inactive).
+  EmergencyRedemption emergency_redemption = 4 [(gogoproto.nullable) = false];
+  // destination for penalty coins (slashed stake, governance deposit "burns") that are redirected
+  // here instead of being burned, so total uphi supply — and therefore solvency — stays constant.
+  // Empty ("") resolves to the operator account, then to the governance authority account.
+  string penalty_destination = 5 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  // a mint at or above this Toman amount must collect the institution's aggregated ADMIN multisig
+  // approvals before it executes ("" or "0" = no large-mint multisig). Defends against a single
+  // operator/admin key minting an unbounded amount.
+  string large_mint_threshold_toman = 6;
+  // protocol hard ceiling on a single mint (Toman; "" or "0" = no ceiling). Every mint must be at or
+  // below this, regardless of an institution's own (possibly unset) caps — bounds inflation.
+  string mint_ceiling_per_tx = 7;
+  // protocol hard ceiling on an institution's cumulative daily mint (Toman; "" or "0" = no ceiling).
+  string mint_ceiling_daily = 8;
+  // NETWORK-WIDE daily redemption cap per human, in uphi ("" or "0" = disabled). Distinct from an
+  // institution's own redeem caps, which are keyed per institution and so let one holder drain the
+  // cap at institution A and again at institution B. This one aggregates a DID's redemptions across
+  // EVERY institution within one block-time day.
+  string redeem_daily_cap_per_did_uphi = 9;
+  // protocol fee on mint and redeem (bps; 1bp=0.01%; default 20 = 0.2%; 0 disables). Carved out of
+  // the minted/redeemed uphi and routed to phi_revenue. It is a DISTRIBUTION of coin that already
+  // exists (or, on mint, of coin that is fully vault-backed): it never mints and never burns, so the
+  // solvency invariant is untouched by it.
+  uint32 protocol_fee_bps = 10;
+  // §4.6 attestation-staleness floor (seconds; 0 disables). An institution whose reserve attestation
+  // is older than this may not MINT — the chain cannot distinguish a fresh reserve claim from a
+  // months-old one, so it stops creating new supply against it. Redemption is NEVER gated by this
+  // (§4.9 red line: a user can always get their money back).
+  //
+  // The gate is COMPUTED at read time from block_time vs last_attested_at. It does not flip Status
+  // and there is no per-block sweep: it self-heals the moment a fresh attestation is posted.
+  uint64 max_attestation_staleness_seconds = 11;
+}

@@ -1,0 +1,38 @@
+syntax = "proto3";
+package phi.institutions;
+
+import "gogoproto/gogo.proto";
+import "phi/institutions/institutions.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/institutions/types";
+
+// StoreEntry is one raw key/value record under a module store prefix. It round-trips the
+// idempotency, cap-counter, and approval markers, which are pure KV markers with no other
+// structured representation; exporting the exact bytes guarantees an exact import.
+message StoreEntry {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+// GenesisState is the initial state of the institutions registry.
+// The solvency invariant must also hold at genesis (otherwise the genesis is invalid).
+message GenesisState {
+  Params params = 1 [(gogoproto.nullable) = false];
+  repeated Institution institutions = 2 [(gogoproto.nullable) = false];
+  // sub-organization role grants (RBAC §13.1) — for export/import round-trip.
+  repeated RoleGrant role_grants = 3 [(gogoproto.nullable) = false];
+  // pending fx onboarding requests (guarantor + vote flow) — for export/import round-trip.
+  repeated FxEntryRequest fx_requests = 4 [(gogoproto.nullable) = false];
+  // deposit/redeem anti-replay markers (DepositPrefix) — for export/import round-trip.
+  repeated StoreEntry deposit_markers = 5 [(gogoproto.nullable) = false];
+  // daily / per-user cap counters (CounterPrefix) — for export/import round-trip.
+  repeated StoreEntry cap_counters = 6 [(gogoproto.nullable) = false];
+  // accumulated multisig approvals of sensitive actions (ApprovalPrefix) — for export/import round-trip.
+  repeated StoreEntry approvals = 7 [(gogoproto.nullable) = false];
+  // every remaining live store prefix that has no structured genesis form of its own — the admin-set
+  // epoch counters, the network-wide daily redeem counters, the holder KYC tier assignments and the
+  // last-attestor records. They are raw KV state, so exporting the exact bytes is what makes an
+  // export/import round-trip exact; without them an import silently resets the admin epoch and revives
+  // approvals a previous admin-set change had already retired.
+  repeated StoreEntry store_entries = 8 [(gogoproto.nullable) = false];
+}

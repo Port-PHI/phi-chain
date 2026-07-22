@@ -1,0 +1,44 @@
+syntax = "proto3";
+package phi.governance;
+
+import "gogoproto/gogo.proto";
+import "amino/amino.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/governance/types";
+
+// VoteRoute is the path a proposal is decided on.
+enum VoteRoute {
+  option (gogoproto.goproto_enum_prefix) = false;
+
+  // unset — never a valid table entry
+  VOTE_ROUTE_UNSPECIFIED = 0;
+  // public — one active DID, one vote (the default for anything not enumerated as technical)
+  VOTE_ROUTE_PUBLIC = 1;
+  // technical — validator stake-weighted
+  VOTE_ROUTE_TECHNICAL = 2;
+}
+
+// VoteRouteEntry maps one proposal message type to the path that decides it.
+message VoteRouteEntry {
+  // Message type (Msg type URL), e.g. /cosmos.upgrade.v1beta1.MsgSoftwareUpgrade
+  string msg_type_url = 1;
+  // The path this message type is decided on
+  VoteRoute route = 2;
+}
+
+// Params holds the governed message-type → vote-path table.
+//
+// The table is the enumeration of the TECHNICAL exceptions: a message type absent from it is
+// decided on the PUBLIC path. That default is deliberate and fail-safe — a new or unrecognised
+// proposal type must never be silently routed to the validator-weighted path.
+//
+// The table is itself changed only by the public path. That anchor is NOT in this table (it could
+// not be: a table that decided how to change itself would let whoever controls it capture the
+// governance of governance). It is a fixed rule in the classifier — see
+// types.MappingUpdateMsgTypeURL.
+message Params {
+  option (amino.name) = "phi/x/governance/Params";
+
+  // Message type → vote path. Only TECHNICAL entries carry meaning; everything else is public.
+  repeated VoteRouteEntry vote_routes = 1 [(gogoproto.nullable) = false];
+}

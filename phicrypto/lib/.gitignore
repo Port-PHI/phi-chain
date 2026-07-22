@@ -1,0 +1,7 @@
+# The C-ABI artifacts are platform-specific and built from source (`make phicrypto-lib`),
+# not committed. Only this directory's README.md is tracked.
+*.a
+*.dylib
+*.so
+# Both the default header and the voting_snark superset header are staged, never committed.
+phi_crypto*.h

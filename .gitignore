@@ -1,0 +1,24 @@
+# Build outputs
+/build/
+/phid          # the built node binary at the repo root (NOT the cmd/phid/ source tree)
+
+# Temporary generated proto code (created at the repo root during protocgen and then moved)
+/github.com/
+
+# Local node data
+.phid/
+
+# Environment, secrets, and logs — never committed in our own tree.
+.env
+*.pem
+*.key
+*.log
+
+# ...but NEVER ignore anything under vendor/: vendored Go dependencies ship *.pem/*.key/*.log test fixtures
+# (e.g. cometbft's rpc test.key and jose2go's EC test keys) that are part of the module vendoring checksum,
+# so ignoring them would leave an incomplete vendor tree and break the offline build. Re-include the whole
+# vendored tree here, after the patterns above, so those fixtures are tracked.
+!/vendor/**
+
+# System cruft — never wanted, not even under vendor/ (kept last so it also re-applies inside vendor/).
+.DS_Store

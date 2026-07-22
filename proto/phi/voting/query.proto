@@ -1,0 +1,46 @@
+syntax = "proto3";
+package phi.voting;
+
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "phi/voting/voting.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/voting/types";
+
+// Query is the voting module query service.
+service Query {
+  // Params returns the current module parameters.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/phi/voting/params";
+  }
+
+  // Election returns an election by id (including its running public tally).
+  rpc Election(QueryElectionRequest) returns (QueryElectionResponse) {
+    option (google.api.http).get = "/phi/voting/elections/{id}";
+  }
+
+  // Voted reports whether a nullifier (hex) has already voted in an election.
+  rpc Voted(QueryVotedRequest) returns (QueryVotedResponse) {
+    option (google.api.http).get = "/phi/voting/elections/{election_id}/voted/{nullifier_hex}";
+  }
+}
+
+message QueryParamsRequest {}
+message QueryParamsResponse {
+  Params params = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryElectionRequest {
+  string id = 1;
+}
+message QueryElectionResponse {
+  Election election = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryVotedRequest {
+  string election_id = 1;
+  string nullifier_hex = 2;
+}
+message QueryVotedResponse {
+  bool voted = 1;
+}
