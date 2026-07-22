@@ -1,0 +1,33 @@
+syntax = "proto3";
+package phi.coin;
+
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "phi/coin/coin.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/coin/types";
+
+// Query service of the coin module.
+service Query {
+  // Params returns the current economic parameters.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/phi/coin/params";
+  }
+
+  // CoinAge returns an address's FIFO queue of coin lots (oldest first).
+  rpc CoinAge(QueryCoinAgeRequest) returns (QueryCoinAgeResponse) {
+    option (google.api.http).get = "/phi/coin/coin_age/{address}";
+  }
+}
+
+message QueryParamsRequest {}
+message QueryParamsResponse {
+  Params params = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryCoinAgeRequest {
+  string address = 1;
+}
+message QueryCoinAgeResponse {
+  CoinAge coin_age = 1 [(gogoproto.nullable) = false];
+}

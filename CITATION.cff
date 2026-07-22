@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+cff-version: 1.2.0
+message: "If you use this software, please cite it using these metadata."
+title: "phi-chain"
+abstract: "Identity-first Cosmos SDK appchain for the Phi network — on-chain DID identity, the multi-institution PHI coin with a solvency invariant, and on-chain governance."
+type: software
+authors:
+  - name: "Homaan Smart Data Co."
+    website: "https://portphi.com"
+url: "https://portphi.com"
+repository-code: "https://github.com/Port-PHI/phi-chain"
+license: Apache-2.0
+keywords:
+  - blockchain
+  - cosmos-sdk
+  - decentralized-identity
+  - did
+  - self-sovereign-identity

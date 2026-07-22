@@ -1,0 +1,10 @@
+{
+  "_comment": "phi-chain voting_snark KAT — public/ZK data only; see phi-crypto/tests/voting_snark_kat_gen.rs",
+  "chain_id": "phi-snark-testnet",
+  "election_id": "snark-election-1",
+  "option_index": 1,
+  "signal_hex": "00000001",
+  "issuer_bbs_pubkey_b64": "sv2GyT/+Peno8pJLnFHgpS2RQGLcYqq/kdhY8PXopdYafI76Kc0QnmgntCUqIn4pDu6wIMA7EayJcSROYbN7BYm9X/vGklro2LM2VoGi5MrqeLQDPnU5sID551QUgFtE",
+  "nullifier_b64": "rMXT42Id6fQ/ggseUUEjcgNuLyXQmxPgZQL5Sia8PJX7GTfPq6GJ6d0yzDU+OyhR",
+  "proof_b64": "AAAAAwAAAbqlMDMM973VmrWql7X5P85Dy9XFvMBlrEGlFWykHatZQwS0eTFT+zoFcg1P3pXH3ByNRHxG4PPvurTy9SMp5OfI42NgilVp+7xJ5h7Hz3A+UnEO+87qEoSzt6uHwvxCICisVGNpMAyRuadj1lWuAPbI69w0MgxN7FYPjd3h+BTp2ppEiVSuaHYrAQSY736HJMmVYbXbE3FKHhqrn4xUb+2xnt494MPlwdMqksrxllS5seRymetK5hqepTfm0uscD/Ka/Fg7tcVRxKJMgmBvL2LsGZ28DqxtH1K6avYys5x3Sb1b4rcp2KnksW4wE3uC8qpVmBPWQAKr36UjUS5DxAcjsl7TTcEDXd4w57zvdjDIhCm9vSDMSDvWxFS5RHn2zwOAYlaf8NXomZoKO82WZb9SAQQAAAAAAAAAAkYyoy4d1m7yigbJPCL05W0Eq3BWI4UhUpXFGHtzbCd3Ig7ptwMdVZSxK29jusflFVD2QHYpntx0t+p+hFe5RcmoOx+G8EY2NKejbQo0uz1ZuV/1vyAVrhPqWa3d78IMrZ7ZbQySwU59/BhvX6cDIldTLS0xNa3Awj7BTlc9CDYAAAAAUI7ELykRTgLR6RyNfgQWE6RKA58GVqqOEalu3KhCenkPRF9zFD8pz8z7LfWusrrD9gJGMqMuHdZu8ooGyTwi9OVtBKtwViOFIVKVxRh7c2wnAAAAMKzF0+NiHen0P4ILHlFBI3IDbi8l0JsT4GUC+UomvDyV+xk3z6uhiendMsw1PjsoUQAAAAEAAAABAAAADHJlZ2lvbj1ub3J0aA=="
+}

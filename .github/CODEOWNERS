@@ -1,0 +1,4 @@
+# Default code owner for the whole repository.
+# Consensus-critical code (the ante handler, module state machines, governance tally, the
+# solvency invariant, and the phicrypto port) always requires review.
+* @homaangit

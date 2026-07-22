@@ -1,0 +1,21 @@
+# SHA-256 pin for the phi-crypto C-ABI staticlib (libphi_crypto.a) — supply-chain integrity
+# gate. The chain links this staticlib only under -tags phicrypto_cgo, and
+# CI verifies the freshly built artifact against this pin before the cgo link.
+#
+# This hash is SINGLE-PLATFORM: it is valid ONLY for the exact canonical toolchain below. A build
+# on any other OS, architecture, or Rust version (e.g. a local macOS build) will NOT match it.
+#
+# Canonical build environment (mirrors the .github/workflows/ci.yml `cgo-verifier` job):
+#   * OS / target triple : Linux x86_64  ->  x86_64-unknown-linux-gnu
+#   * Rust toolchain     : 1.96.0  (pinned via dtolnay/rust-toolchain in ci.yml; an exact version,
+#                          not "stable", because a new Rust release would change this hash)
+#   * source             : Port-PHI/phi-crypto at the revision that job checks out
+#   * build command      : RUSTFLAGS="--remap-path-prefix=$(pwd)=." \
+#                            cargo build --release --locked --offline
+#       --locked              pinned Cargo.lock (no dependency drift)
+#       --offline             vendored crates only (no network)
+#       --remap-path-prefix   path-independent object files -> reproducible, path-stable staticlib
+#
+# Regenerate in that environment with `make phicrypto-lib && make phicrypto-lib-pin`, review the new
+# value, then commit this file. Format: "<sha256>  libphi_crypto.a" (sha256sum -c compatible).
+aca0c3c0396298aca5e597b7722b8f19936df799e456d1fc98adbdfb1bdd14e9  libphi_crypto.a

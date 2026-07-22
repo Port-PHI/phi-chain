@@ -1,0 +1,97 @@
+syntax = "proto3";
+package phi.coin;
+
+import "gogoproto/gogo.proto";
+import "amino/amino.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/coin/types";
+
+// FeeEntry is one row of the per-message-type fixed-fee table.
+message FeeEntry {
+  // Message type (Msg type URL), e.g. /phi.coin.MsgTransfer
+  string msg_type_url = 1;
+  // Fixed fee (uphi)
+  string fee = 2;
+}
+
+// SplitEntry is one row of the revenue-split table: how the fixed fee charged for a message type is
+// divided between the validator set and the company. The company share is computed from company_bps
+// and the validator leg takes the remainder, so the two parts always sum to the fee exactly.
+// validator_bps is therefore the nominal validator share; any bps shortfall accrues to it.
+message SplitEntry {
+  // Message type (Msg type URL), e.g. /phi.coin.MsgTransfer
+  string msg_type_url = 1;
+  // Validator share (bps; 1bp=0.01%) — routed to the standard fee collector
+  uint32 validator_bps = 2;
+  // Company share (bps) — routed to the keyless phi_revenue module account
+  uint32 company_bps = 3;
+}
+
+// Params holds the coin module's economic parameters; changeable only via governance.
+message Params {
+  option (amino.name) = "phi/x/coin/Params";
+
+  // Per-message-type fixed-fee table (uphi)
+  repeated FeeEntry fees = 1 [(gogoproto.nullable) = false];
+  // Default fee when the message type is not in the table (uphi)
+  string default_fee = 2;
+  // Micro-exemption threshold (uphi); a transaction smaller than this draws from the free quota
+  string micro_threshold = 3;
+  // Daily micro-exemption quota per DID
+  uint64 micro_daily_quota = 4;
+  // Coin-age threshold duration (seconds): below it "young", above it "old"
+  int64 coin_age_threshold_seconds = 5;
+  // Early-redeem penalty rate for YOUNG coin (bps; 1bp=0.01%) — default 1% = 100.
+  // Nothing is burned by this: the penalty is carved out of the redeemed uphi and routed to
+  // phi_revenue as network revenue (it was misnamed "burn" while it was an off-chain payout cut).
+  uint32 young_penalty_bps = 6;
+  // Early-redeem penalty rate for OLD coin (bps) — default 0.2% = 20.
+  uint32 old_penalty_bps = 7;
+  // Revenue-split table; a message type absent from it pays its whole fee to the fee collector
+  repeated SplitEntry splits = 8 [(gogoproto.nullable) = false];
+  // Destination of a governance-authorised revenue withdrawal from phi_revenue (bech32).
+  // Empty disables withdrawals; it is never a fee sink, only a withdrawal target.
+  string company_payout_address = 9;
+  // Surcharge (uphi) per required signer of an agreement beyond agreement_free_signers.
+  // Empty or "0" disables the surcharge. This is the only CONTENT-dependent fee: an agreement's
+  // price depends on how many signers its own message declares.
+  string agreement_extra_signer_fee = 10;
+  // Number of an agreement's required signers that carry no surcharge (the 6th signer is the first
+  // charged when this is 5).
+  uint32 agreement_free_signers = 11;
+  // Maximum coin-age lots a holder's FIFO queue may hold (state/gas bound; default 64). On overflow
+  // the two OLDEST lots are merged, so a dust-spammer only ever fills their victim's queue up to
+  // this bound and can never dilute the victim's aged coin.
+  uint32 max_coin_age_lots = 12;
+}
+
+// CoinLot is one parcel of coin a holder acquired at a single moment. The lot is the unit the
+// early-redeem penalty is priced on: its age decides its tier, so age is a property of the COIN, not
+// of the account.
+message CoinLot {
+  // Amount (uphi)
+  string amount = 1;
+  // When this coin was acquired (Unix seconds, from block time — never a wall clock)
+  int64 acquired_at = 2;
+}
+
+// CoinAge is a holder's FIFO queue of coin lots, ordered OLDEST → NEWEST.
+//
+// Coin is consumed oldest-first, so a holder's aged coin leaves (and is priced) before their fresh
+// coin. Age travels with the coin across transfers: the recipient inherits the sender's acquired_at,
+// so a transfer cannot rejuvenate coin.
+//
+// The queue is bounded by params.max_coin_age_lots. On overflow the two OLDEST adjacent lots are
+// merged (keeping the older timestamp) — never the youngest. Merging at the young end would let an
+// attacker dust a victim with fresh coin and drag the victim's aged balance younger; merging at the
+// old end makes that attack pointless.
+message CoinAge {
+  // The two-bucket (young/old) model these replace. Never reuse the numbers.
+  reserved 2, 3, 4;
+  reserved "young_amount", "old_amount", "young_since";
+
+  // Owner address (bech32)
+  string address = 1;
+  // Lots, ordered oldest → newest
+  repeated CoinLot lots = 5 [(gogoproto.nullable) = false];
+}

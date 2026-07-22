@@ -1,0 +1,21 @@
+syntax = "proto3";
+package phi.governance;
+
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "phi/governance/governance.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/governance/types";
+
+// Query service of the governance module.
+service Query {
+  // Params returns the current message-type → vote-path table.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/phi/governance/params";
+  }
+}
+
+message QueryParamsRequest {}
+message QueryParamsResponse {
+  Params params = 1 [(gogoproto.nullable) = false];
+}

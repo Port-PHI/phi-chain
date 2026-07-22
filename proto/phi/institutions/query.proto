@@ -1,0 +1,65 @@
+syntax = "proto3";
+package phi.institutions;
+
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "phi/institutions/institutions.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/institutions/types";
+
+// Query service of the institutions registry.
+service Query {
+  // Params returns the module's current parameters.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/phi/institutions/params";
+  }
+
+  // Institution returns an institution by ID.
+  rpc Institution(QueryInstitutionRequest) returns (QueryInstitutionResponse) {
+    option (google.api.http).get = "/phi/institutions/institutions/{id}";
+  }
+
+  // Institutions lists all registered institutions.
+  rpc Institutions(QueryInstitutionsRequest) returns (QueryInstitutionsResponse) {
+    option (google.api.http).get = "/phi/institutions/institutions";
+  }
+
+  // Solvency returns the global solvency summary (TotalSupply and Σ vault_balance).
+  rpc Solvency(QuerySolvencyRequest) returns (QuerySolvencyResponse) {
+    option (google.api.http).get = "/phi/institutions/solvency";
+  }
+}
+
+message QueryParamsRequest {}
+message QueryParamsResponse {
+  Params params = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryInstitutionRequest {
+  string id = 1;
+}
+message QueryInstitutionResponse {
+  Institution institution = 1 [(gogoproto.nullable) = false];
+  // COMPUTED at read time from block_time vs institution.last_attested_at against the effective
+  // threshold. It is derived, never stored: the §4.6 gate does not flip Status, so this is the only
+  // place the staleness is visible without replaying the mint gate.
+  bool attestation_stale = 2;
+  // The threshold actually applied (seconds) — the stricter of the protocol floor and the
+  // institution's own max_vault_attestation_latency_s. 0 = the gate is disabled.
+  uint64 effective_staleness_seconds = 3;
+}
+
+message QueryInstitutionsRequest {}
+message QueryInstitutionsResponse {
+  repeated Institution institutions = 1 [(gogoproto.nullable) = false];
+}
+
+message QuerySolvencyRequest {}
+message QuerySolvencyResponse {
+  // total supply (uphi)
+  string total_supply_uphi = 1;
+  // sum of all institutions' reserves (Toman)
+  string sum_vault_balance_toman = 2;
+  // whether the solvency invariant holds
+  bool solvent = 3;
+}

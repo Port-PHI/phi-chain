@@ -1,0 +1,24 @@
+syntax = "proto3";
+package phi.governance;
+
+import "gogoproto/gogo.proto";
+import "phi/governance/governance.proto";
+
+option go_package = "github.com/Port-PHI/phi-chain/x/governance/types";
+
+// StoreEntry is one raw key/value record under a module store prefix. It round-trips the governance
+// module's in-flight proposal state, which has no structured genesis form of its own.
+message StoreEntry {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+// GenesisState is the initial state of the governance module.
+message GenesisState {
+  Params params = 1 [(gogoproto.nullable) = false];
+  // Every live governance store record with no structured genesis form: the per-proposal frozen
+  // eligibility bases, the running per-head tallies, the per-voter contribution records and the
+  // pruning queue. Without them an export taken while a proposal is being voted on silently discards
+  // every ballot cast so far and the basis they were counted against.
+  repeated StoreEntry store_entries = 2 [(gogoproto.nullable) = false];
+}
